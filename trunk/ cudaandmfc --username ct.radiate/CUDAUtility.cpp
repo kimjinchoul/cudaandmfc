@@ -1,51 +1,22 @@
-/********************************************************************
-*  CUDACLASS.cu
-*  This is a example of the CUDA program.
-*  aurthor: zhao.kaiyong(at)gmail.com
-*  http://www.comp.hkbu.edu.hk/~kyzhao/
-*********************************************************************/
-
 #include "stdafx.h"
 #include "CUDAUtility.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <cuda_runtime.h>
-#include <cutil.h>
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <cuda_runtime.h>
+// #include <cutil.h>
 
-// CUDA D3D9 kernel
-//extern "C" void simpleD3DKernel(float4* pos, unsigned int width, unsigned int height, float time);
 
-//texture<float, 2, cudaReadModeElementType> tex;
-
-/************************************************************************/
-/* Example                                                              */
-/************************************************************************/
-// __global__ static void HelloCUDA(float* result, int num)
-// {
-// 	int i = 0;
-// 	for(i = 0; i < num; i++) 
-// 	{
-// 		result[i] = tex2D(tex,(float) i,0) + tex2D(tex,(float)i,1);
-// 	}
-// }
-
-CCUDACLASS::CCUDACLASS(void):m_pVB(NULL), m_pD3D(NULL), m_pD3D9DirectXDevice(NULL), m_iMeshWidth(200), m_iMeshHeight(200), m_fTime(0.0)
+CCUDACLASS::CCUDACLASS(void):m_pVB(NULL), m_pD3D(NULL), m_pD3D9DirectXDevice(NULL), m_pTexVB(NULL), \
+	m_pTB(NULL), m_iMeshWidth(0), m_iMeshHeight(0)/*, m_fTime(0.0)*/
 {
 }
 
 CCUDACLASS::~CCUDACLASS(void)
 {
-// 	 if( m_pVB != NULL ) 
-// 	 {
-//         // Unregister vertex buffer
-//         CUDA_SAFE_CALL(cudaD3D9UnregisterResource(m_pVB));
-// 	    //CUT_CHECK_ERROR("cudaD3D9UnregisterResource failed");
-// 		CUDAErrCheck(_T("cudaD3D9UnregisterResource failed"));
-//         
-//         //g_pVB->Release();
-//     }
-	 m_pVB = NULL;
+	m_pVB = NULL;
 	m_pD3D = NULL;
+	m_pTB = NULL;
+	m_pTexVB = NULL;
 	m_pD3D9DirectXDevice = NULL;
 }
 
@@ -157,6 +128,68 @@ bool CCUDACLASS::UnregisterD3D9VertexBuffer(void)
 	return true;
 }
 
+bool CCUDACLASS::RegisterD3D9TextureBuffer(LPDIRECT3DTEXTURE9 pD3D9TextureBuffer)
+{
+	if(pD3D9TextureBuffer == NULL)
+	{
+		AfxMessageBox(_T("D3D9TextureBuffer is Empty! Can not Cal D3D9Texture!"));
+
+		return false;
+	}
+
+	m_pTB = pD3D9TextureBuffer;
+
+	cudaD3D9RegisterResource(pD3D9TextureBuffer, cudaD3D9RegisterFlagsNone);
+	CUDAErrCheck(_T("cudaD3D9RegisterResource (D3D9TextureBuffer) failed"));
+	cudaD3D9ResourceSetMapFlags(pD3D9TextureBuffer, cudaD3D9MapFlagsWriteDiscard);
+	CUDAErrCheck(_T("cudaD3D9ResourceSetMapFlags (D3D9TextureBuffer) failed"));
+
+	return true;
+}
+
+bool CCUDACLASS::UnregisterD3D9TextureBuffer(void)
+{
+	if(m_pTB == NULL)
+	{
+		AfxMessageBox(_T("D3D9TextureBuffer is Empty! Can not Unregister D3D9Texture Buffer!"));
+
+		return false;
+	}
+
+	cudaD3D9UnregisterResource(m_pTB);
+	CUDAErrCheck(_T("cudaD3D9UnregisterResource (D3D9VertexBuffer) failed"));
+
+	return true;
+}
+
+bool CCUDACLASS::InitD3D9TextureBuffer(void)
+{
+	float4 *lpD3D9TextureBuffer = NULL;
+	size_t dwTextureBufferSize;
+
+	if(m_pTB == NULL)
+	{
+		AfxMessageBox(_T("D3D9TextureBuffer is Empty! Can not Cal D3D9Texture!"));
+
+		return false;
+	}
+
+	// CUDA Map call to the Vertex Buffer and return a pointer
+	cudaD3D9MapResources(1, (IDirect3DResource9 **)&m_pTB);
+	CUDAErrCheck(_T("cudaD3D9MapResources failed"));
+	cudaD3D9ResourceGetMappedPointer((void **)&lpD3D9TextureBuffer, m_pTB, 0, 0);
+	cudaD3D9ResourceGetMappedSize(&dwTextureBufferSize, m_pTB, 0, 0);
+
+	// ZeroMemory
+	cudaMemset(lpD3D9TextureBuffer, 0, dwTextureBufferSize);
+
+	// CUDA Map Unmap vertex buffer
+	cudaD3D9UnmapResources(1, (IDirect3DResource9 **)&m_pTB);
+	CUDAErrCheck(_T("cudaD3D9UnmapResources failed"));
+
+	return true;
+}
+
 void CCUDACLASS::CUDAErrCheck(LPCTSTR szErrMessage)
 {
 	bool bResSign = true;
@@ -211,12 +244,12 @@ void CCUDACLASS::CUDAErrCheck(LPCTSTR szErrMessage)
 // 	return 1;
 // }
 
-bool CCUDACLASS::CalVertexKernel( float fTime, int iMeshWidth, int iMeshHeight )
+bool CCUDACLASS::CalVertexKernel( int iMeshWidth, int iMeshHeight, float fTime )
 {
 	//HelloCUDA<<<1, 1, 0>>>(device_result, m_ret_len);
 	//CUT_CHECK_ERROR("Kernel execution failed\n");
 	//CUDAErrCheck(_T("cudaD3D9ResourceSetMapFlags (pVB) failed"));
-	float4* dptr;
+	float4* dptr = NULL;
 
 	if(m_pVB == NULL)
 	{
@@ -241,6 +274,33 @@ bool CCUDACLASS::CalVertexKernel( float fTime, int iMeshWidth, int iMeshHeight )
 	return true;
 }
 
+bool CCUDACLASS::CalTextureKernel(int iTextureWidth, int iTextureHeight, float fTimeStamp)
+{
+	float4 *lpD3D9TextureBuffer = NULL;
+	size_t dwTextureBufferPitch;
+
+	if(m_pTB == NULL)
+	{
+		AfxMessageBox(_T("D3D9TextureBuffer is Empty! Can not Cal D3D9Texture!"));
+
+		return false;
+	}
+
+	// CUDA Map call to the Vertex Buffer and return a pointer
+	cudaD3D9MapResources(1, (IDirect3DResource9 **)&m_pTB);
+	CUDAErrCheck(_T("cudaD3D9MapResources failed"));
+	cudaD3D9ResourceGetMappedPointer((void **)&lpD3D9TextureBuffer, m_pTB, 0, 0);
+	cudaD3D9ResourceGetMappedPitch(&dwTextureBufferPitch, NULL, m_pTB, 0, 0);
+
+	// Execute kernel
+	m_ccKernel.DoTexture(lpD3D9TextureBuffer, iTextureWidth, iTextureHeight, dwTextureBufferPitch, fTimeStamp);
+
+	// CUDA Map Unmap vertex buffer
+	cudaD3D9UnmapResources(1, (IDirect3DResource9 **)&m_pTB);
+	CUDAErrCheck(_T("cudaD3D9UnmapResources failed"));
+
+	return true;
+}
 
 // int CCUDACLASS::TranslateResult(float * out_data)
 // {

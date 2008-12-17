@@ -40,6 +40,9 @@ typedef struct _tagStruTextureInfo
 	int iTextHeight;
 	D3DFORMAT StruTextFormat;
 	int iPixelBytesNum;
+	LPDIRECT3DTEXTURE9 pImageTexture;
+	//IDirect3DTexture9 *pImageTexture;
+	
 } StruTextureInfo, *LPStruTextureInfo;
 
 #define D3DFVF_CUSTOMTEXVERTEX (D3DFVF_XYZ | D3DFVF_TEX1)
@@ -50,41 +53,49 @@ class CCUDAD3DDisplay
 {
 public:
 	CCUDAD3DDisplay(void);
-	/*virtual*/ ~CCUDAD3DDisplay(void);
+	virtual ~CCUDAD3DDisplay(void);
 
-	bool InitCUDAD3DDisplay(HWND hDisplayDevice);
+	bool InitCUDAD3DDisplay(HWND hDisplayDevice, int iTexWidth, int iTexHeight, D3DFORMAT StruTexFormat, int iPixelBytesNum);
 	bool DisplayTexture(/*CPgmSlice *lpTexture,*/ D3DFORMAT StruTextFormat, int iPixelBytesNum);
+	bool DisplayTexture(float fTime);
 	bool DisplayVertex(float fTime);
 	bool Cleanup(void);
 	bool SetDisplayZoom(float fDisplayZoom);
 
 private:
+	CCUDAD3DDisplay(const CCUDAD3DDisplay &ccdDisplay);
 	CCUDAD3DDisplay& operator=(const CCUDAD3DDisplay &cddRhs);
 	//D3D Element
 	bool PreInit(void);
-	bool PreTerminate(void);
-	HRESULT PreRender(void);
-	bool PreReset(void);
 	bool InitD3D(void);
-	HRESULT Render(void);
 	bool PostInit(void);
-	bool PostTerminate(void);
-	HRESULT PostRender(void);
-	bool PostReset(void);
-	bool HandleMessage(MSG *pMessage);
 
+	HRESULT PreRender(void);
+	HRESULT Render(void);
+	HRESULT PostRender(void);
+
+	bool PreReset(void);
+	bool PostReset(void);
+
+	bool PreTerminate(void);
+	bool PostTerminate(void);
+	
+	bool HandleMessage(MSG *pMessage);
 	void SetupMatrices(void);
 	
 	//Function Modal
-	
 	void VerifyModes(void);
 	HRESULT SetWindowedDevice(void);
 	HRESULT CreateDevice(void);
 	HRESULT SetupDevice(void);
 	HRESULT RestoreDevice(void);
 	HRESULT DestroyDevice(void);
-	HRESULT CreateGeometry(void);
-	HRESULT DestroyGeometry(void);
+	HRESULT CreateVerGeometry(void);
+	HRESULT DestroyVerGeometry(void);
+	HRESULT CreateTexGeometry(void);
+	HRESULT DestroyTexGeometry(void);
+	HRESULT CreateCUDATextures(void);
+	HRESULT DestroyCUDATextures(void);
 	HRESULT CreateCustomTextures(int iTextWidth, int iTextHeight, D3DFORMAT StruTextFormat, int iPixelBytesNum);
 	HRESULT LoadTextureData(UCHAR *lpDataBuffer, int iTextWidth, int iTextHeight);
 	HRESULT DestroyTextureObject(void);
@@ -97,8 +108,9 @@ private:
 	LPDIRECT3D9 m_pD3D;
 	LPDIRECT3DDEVICE9 m_pD3DDevice;
 	LPDIRECT3DVERTEXBUFFER9 m_pVertexBuffer;
+	LPDIRECT3DVERTEXBUFFER9 m_pTexVertexBuffer;
 	LPDIRECT3DTEXTURE9 m_pImageTexture;
-	StruTextureInfo m_struTextInfo;
+	StruTextureInfo m_struCUDATextInfo;
 	D3DXMATRIX m_struWorldMatrix;
 	D3DXMATRIX m_struViewMatrix;
 	D3DXMATRIX m_struProjMatrix;
@@ -107,10 +119,13 @@ private:
 	D3DPRESENT_PARAMETERS m_struPresentParameters;
 	D3DDEVICE_CREATION_PARAMETERS m_struCreationParameters;
 
+	int m_iControlWidth;
+	int m_iControlHeight;
 	int m_iMeshWidth;
 	int m_iMeshHeight;
 	int m_iNumVertices;
 
+	//CUDA Method
 	CCUDACLASS m_ccclass;
 
 };

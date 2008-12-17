@@ -3,9 +3,9 @@
 
 
 CCUDAD3DDisplay::CCUDAD3DDisplay(void): m_hDisplayWnd(NULL), m_fDisplayZoom(1.0f), /*m_lpResetDataPointer(NULL), */m_pD3D(NULL), m_pD3DDevice(NULL), \
-	m_pVertexBuffer(NULL), m_pImageTexture(NULL)
+	m_pVertexBuffer(NULL), m_pImageTexture(NULL)/*, m_iControlWidth(0), m_iControlHeight(0)*/
 {
-	memset(&m_struTextInfo, 0, sizeof(StruTextureInfo));
+	memset(&m_struCUDATextInfo, 0, sizeof(StruTextureInfo));
 	memset(&m_struHALCaps, 0, sizeof(D3DCAPS9));
 	memset(&m_struCurrentMode, 0, sizeof(D3DDISPLAYMODE));
 	memset(&m_struPresentParameters, 0, sizeof(D3DPRESENT_PARAMETERS));
@@ -17,7 +17,7 @@ CCUDAD3DDisplay::~CCUDAD3DDisplay(void)
 	Cleanup();
 }
 
-bool CCUDAD3DDisplay::InitCUDAD3DDisplay(HWND hDisplayDevice)
+bool CCUDAD3DDisplay::InitCUDAD3DDisplay( HWND hDisplayDevice, int iTexWidth, int iTexHeight, D3DFORMAT StruTexFormat, int iPixelBytesNum )
 {
 	if(hDisplayDevice == NULL)
 	{
@@ -25,7 +25,19 @@ bool CCUDAD3DDisplay::InitCUDAD3DDisplay(HWND hDisplayDevice)
 
 		return false;
 	}
+
+	if(iTexWidth <= 0 || iTexHeight <= 0 || iPixelBytesNum <= 0)
+	{
+		AfxMessageBox(_T("Parameters Error!"));
+
+		return false;
+	}
+
 	m_hDisplayWnd = hDisplayDevice;
+	m_struCUDATextInfo.iTextWidth = iTexWidth;
+	m_struCUDATextInfo.iTextHeight = iTexHeight;
+	m_struCUDATextInfo.StruTextFormat = StruTexFormat;
+	m_struCUDATextInfo.iPixelBytesNum = iPixelBytesNum;
 
 	if(!PreInit())
 	{
@@ -39,16 +51,6 @@ bool CCUDAD3DDisplay::InitCUDAD3DDisplay(HWND hDisplayDevice)
 	{
 		return false;
 	}
-
-// 	if(!m_ccclass.InitCUDA())
-// 	{
-// 		return false;
-// 	}
-
-// 	if(!m_ccclass.InitCUDAD3D(m_pVertexBuffer))
-// 	{
-// 		return false;
-// 	}
 
 	return true;
 }
@@ -92,6 +94,40 @@ bool CCUDAD3DDisplay::DisplayTexture( /*CPgmSlice *lpTexture,*/ D3DFORMAT StruTe
 // 		return false;
 // 	}
 // 	m_lpResetDataPointer = lpTexture;
+
+	// Render
+	if(FAILED(PreRender()))
+	{
+		AfxMessageBox(_T("PreRender Failed!"));
+
+		return false;
+	}
+
+	if(FAILED(Render()))
+	{
+		AfxMessageBox(_T("Render Failed!"));
+
+		return false;
+	}
+
+	if(FAILED(PostRender()))
+	{
+		AfxMessageBox(_T("PostRender Failed!"));
+
+		return false;
+	}
+
+	return true;
+}
+
+bool CCUDAD3DDisplay::DisplayTexture(float fTime)
+{
+	if(!m_ccclass.CalTextureKernel(m_struCUDATextInfo.iTextWidth, m_struCUDATextInfo.iTextHeight, fTime))
+	{
+		AfxMessageBox(_T(".CalCDUATexture Failed!"));
+
+		return false;
+	}
 
 	// Render
 	if(FAILED(PreRender()))
@@ -194,64 +230,21 @@ bool CCUDAD3DDisplay::PreInit(void)
 		//Set the default device value to NULL
 	m_pD3DDevice = NULL;
 	m_pVertexBuffer = NULL;
-	m_pImageTexture = NULL;
+	//m_pImageTexture = NULL;
+	m_pTexVertexBuffer = NULL;
 
-	memset(&m_struTextInfo, 0, sizeof(StruTextureInfo));
+	//memset(&m_struCUDATextInfo, 0, sizeof(StruTextureInfo));
 	memset(&m_struHALCaps, 0, sizeof(D3DCAPS9));
 	memset(&m_struCurrentMode, 0, sizeof(D3DDISPLAYMODE));
 	memset(&m_struPresentParameters, 0, sizeof(D3DPRESENT_PARAMETERS));
 	memset(&m_struCreationParameters, 0, sizeof(D3DDEVICE_CREATION_PARAMETERS));
 
-	return true;
-}
+	// Get Control Size
+	RECT rcDisplaySize;
 
-HRESULT CCUDAD3DDisplay::PreRender(void)
-{
-	HRESULT hr = S_OK;
-
-	hr = m_pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET,
-		D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
-
-	//Call BeginScene to set up the device
-	m_pD3DDevice->BeginScene();
-
-	return hr;
-}
-
-bool CCUDAD3DDisplay::PreTerminate(void)
-{
-	// Unregister D3D9VertexBuffer for CUDA
-	if(!m_ccclass.UnregisterD3D9VertexBuffer())
-	{
-		return false;
-	}
-// 	if(FAILED(DestroyTextureObject()))
-// 	{
-// 		AfxMessageBox(_T("DestroyTextureObject Failed!"));
-// 
-// 		return false;
-// 	}
-
-	if(FAILED(DestroyGeometry()))
-	{
-		AfxMessageBox(_T("DestroyGeometry Failed!"));
-
-		return false;
-	}
-
-	if(FAILED(DestroyDevice()))
-	{
-		AfxMessageBox(_T("DestroyDevice Failed!"));
-
-		return false;
-	}
-
-	if(FAILED(DestroyD3D()))
-	{
-		AfxMessageBox(_T("DestroyD3D Failed!"));
-
-		return false;
-	}
+	::GetWindowRect(m_hDisplayWnd, &rcDisplaySize);
+	m_iControlWidth = rcDisplaySize.right - rcDisplaySize.left;
+	m_iControlHeight= rcDisplaySize.bottom - rcDisplaySize.top;
 
 	return true;
 }
@@ -263,21 +256,6 @@ bool CCUDAD3DDisplay::InitD3D(void)
 
 	//Return a default value
 	return true;
-}
-
-HRESULT CCUDAD3DDisplay::Render(void)
-{
-	HRESULT hr = S_OK;
-	//for texture
-	//hr = m_pD3DDevice->SetTexture(0, m_pImageTexture);
-
-	//for vertex
-	hr |= m_pD3DDevice->SetStreamSource( 0, m_pVertexBuffer, 0, sizeof(StruCustomVertex) );
-	hr |= m_pD3DDevice->SetFVF( D3DFVF_CUSTOMVERTEX );
-	hr |= m_pD3DDevice->DrawPrimitive( D3DPT_POINTLIST, 0, m_iNumVertices );
-	//hr |= m_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
-
-	return hr;
 }
 
 bool CCUDAD3DDisplay::PostInit(void)
@@ -292,13 +270,28 @@ bool CCUDAD3DDisplay::PostInit(void)
 		return false;
 	}
 
-	if(FAILED(CreateGeometry()))
+// 	if(FAILED(CreateVerGeometry()))
+// 	{
+// 		AfxMessageBox(_T("Init Geometry Failed!"));
+// 
+// 		return false;
+// 	}
+
+	if(FAILED(CreateTexGeometry()))
 	{
 		AfxMessageBox(_T("Init Geometry Failed!"));
 
 		return false;
 	}
 
+	if(FAILED(CreateCUDATextures()))
+	{
+		AfxMessageBox(_T("Init Geometry Failed!"));
+
+		return false;
+	}
+
+	//Init CUDAD3D Interface
 	if (!m_ccclass.SetCUDACapableD3D9Device(m_pD3D))
 	{
 		return false;
@@ -309,16 +302,60 @@ bool CCUDAD3DDisplay::PostInit(void)
 		return false;
 	}
 
-	if(!m_ccclass.RegisterD3D9VertexBuffer(m_pVertexBuffer))
+// 	if(!m_ccclass.RegisterD3D9VertexBuffer(m_pVertexBuffer))
+// 	{
+// 		return false;
+// 	}
+
+	if(!m_ccclass.RegisterD3D9TextureBuffer(m_struCUDATextInfo.pImageTexture))
 	{
 		return false;
 	}
 
+	if(!m_ccclass.InitD3D9TextureBuffer())
+	{
+		return false;
+	}
 
 	//VerifyModes();
 
 
 	return true;
+}
+
+
+HRESULT CCUDAD3DDisplay::PreRender(void)
+{
+	HRESULT hr = S_OK;
+
+	hr = m_pD3DDevice->Clear(0, NULL, D3DCLEAR_TARGET,
+		D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+
+	//Call BeginScene to set up the device
+	m_pD3DDevice->BeginScene();
+
+	return hr;
+}
+
+HRESULT CCUDAD3DDisplay::Render(void)
+{
+	HRESULT hr = S_OK;
+	//for texture
+	//hr = m_pD3DDevice->SetTexture(0, m_pImageTexture);
+
+	//For VertexBuffer
+	//hr |= m_pD3DDevice->SetStreamSource( 0, m_pVertexBuffer, 0, sizeof(StruCustomVertex) );
+	//hr |= m_pD3DDevice->SetFVF( D3DFVF_CUSTOMVERTEX );
+	//hr |= m_pD3DDevice->DrawPrimitive( D3DPT_POINTLIST, 0, m_iNumVertices );
+
+	//For TextureBuffer
+	hr |= m_pD3DDevice->SetRenderState(D3DRS_FILLMODE, D3DFILL_SOLID);
+	hr |= m_pD3DDevice->SetFVF(D3DFVF_CUSTOMTEXVERTEX);
+	hr |= m_pD3DDevice->SetTexture(0, m_struCUDATextInfo.pImageTexture);
+	hr |= m_pD3DDevice->SetStreamSource(0, m_pTexVertexBuffer, 0, sizeof(StruCustomTexVertex));
+	hr |= m_pD3DDevice->DrawPrimitive(D3DPT_TRIANGLESTRIP, 0, 2);
+
+	return hr;
 }
 
 HRESULT CCUDAD3DDisplay::PostRender(void)
@@ -353,6 +390,164 @@ HRESULT CCUDAD3DDisplay::PostRender(void)
 	}
 
 	return hr;
+}
+
+
+bool CCUDAD3DDisplay::PreReset(void)
+{
+// 	 if(FAILED(DestroyTextureObject()))
+// 	{
+// 	 	return false;
+// 	}
+
+// 	if(FAILED(DestroyVerGeometry()))
+// 	{
+// 		return false;
+// 	}
+	if(FAILED(DestroyTexGeometry()))
+	{
+		return false;
+	}
+	if(FAILED(DestroyCUDATextures()))
+	{
+		return false;
+	}
+
+	// Unregister D3D9VertexBuffer for CUDA
+// 	if(!m_ccclass.UnregisterD3D9VertexBuffer())
+// 	{
+// 		return false;
+// 	}
+
+	// Unregister D3D9VertexBuffer for CUDA
+	if(!m_ccclass.UnregisterD3D9TextureBuffer())
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool CCUDAD3DDisplay::PostReset(void)
+{
+	if(FAILED(SetupDevice()))
+	{
+		return false;
+	}
+
+	// 	if(FAILED(CreateCustomTextures(m_lpResetDataPointer->m_iImageWidth, m_lpResetDataPointer->m_iImageHeight, m_struTextInfo.StruTextFormat, m_struTextInfo.iPixelBytesNum)))
+	// 	{
+	// 		return false;
+	// 	}
+
+	if(FAILED(CreateTexGeometry()))
+	{
+		AfxMessageBox(_T("Init Geometry Failed!"));
+
+		return false;
+	}
+
+	if(FAILED(CreateCUDATextures()))
+	{
+		AfxMessageBox(_T("Init Texture Failed!"));
+
+		return false;
+	}
+
+	//For VertexBuffer
+// 	if(FAILED(CreateVerGeometry()))
+// 	{
+// 		AfxMessageBox(_T("Init Geometry Failed!"));
+// 
+// 		return false;
+// 	}
+
+	//Init CUDAD3D Interface
+	if (!m_ccclass.SetCUDACapableD3D9Device(m_pD3D))
+	{
+		return false;
+	}
+
+	if (!m_ccclass.LoadD3D9DirectXDevice(m_pD3DDevice))
+	{
+		return false;
+	}
+	//For VertexBuffer
+// 	if(!m_ccclass.RegisterD3D9VertexBuffer(m_pVertexBuffer))
+// 	{
+// 		return false;
+// 	}
+
+	if(!m_ccclass.RegisterD3D9TextureBuffer(m_struCUDATextInfo.pImageTexture))
+	{
+		return false;
+	}
+	if(!m_ccclass.InitD3D9TextureBuffer())
+	{
+		return false;
+	}
+
+	// 	if(FAILED(LoadTextureData(m_lpResetDataPointer->m_lpImageBuffer, m_lpResetDataPointer->m_iImageWidth, m_lpResetDataPointer->m_iImageHeight)))
+	// 	{
+	// 		return false;
+	// 	}
+
+	return true;
+}
+
+bool CCUDAD3DDisplay::PreTerminate(void)
+{
+	// Unregister D3D9VertexBuffer for CUDA
+// 	if(!m_ccclass.UnregisterD3D9VertexBuffer())
+// 	{
+// 		return false;
+// 	}
+
+	// Unregister D3D9VertexBuffer for CUDA
+	if(!m_ccclass.UnregisterD3D9TextureBuffer())
+	{
+		return false;
+	}
+
+	// 	if(FAILED(DestroyTextureObject()))
+	// 	{
+	// 		AfxMessageBox(_T("DestroyTextureObject Failed!"));
+	// 
+	// 		return false;
+	// 	}
+
+// 	if(FAILED(DestroyVerGeometry()))
+// 	{
+// 		AfxMessageBox(_T("DestroyGeometry Failed!"));
+// 
+// 		return false;
+// 	}
+
+	if(FAILED(DestroyTexGeometry()))
+	{
+		return false;
+	}
+
+	if(FAILED(DestroyCUDATextures()))
+	{
+		return false;
+	}
+
+	if(FAILED(DestroyDevice()))
+	{
+		AfxMessageBox(_T("DestroyDevice Failed!"));
+
+		return false;
+	}
+
+	if(FAILED(DestroyD3D()))
+	{
+		AfxMessageBox(_T("DestroyD3D Failed!"));
+
+		return false;
+	}
+
+	return true;
 }
 
 bool CCUDAD3DDisplay::PostTerminate(void)
@@ -404,68 +599,6 @@ void CCUDAD3DDisplay::SetupMatrices()
 	return ;
 }
 
-bool CCUDAD3DDisplay::PreReset(void)
-{
-// 	if(FAILED(DestroyTextureObject()))
-// 	{
-// 		return false;
-// 	}
-
-	if(FAILED(DestroyGeometry()))
-	{
-		return false;
-	}
-	// Unregister D3D9VertexBuffer for CUDA
-	if(!m_ccclass.UnregisterD3D9VertexBuffer())
-	{
-		return false;
-	}
-
-	return true;
-}
-
-bool CCUDAD3DDisplay::PostReset(void)
-{
-	if(FAILED(SetupDevice()))
-	{
-		return false;
-	}
-
-// 	if(FAILED(CreateCustomTextures(m_lpResetDataPointer->m_iImageWidth, m_lpResetDataPointer->m_iImageHeight, m_struTextInfo.StruTextFormat, m_struTextInfo.iPixelBytesNum)))
-// 	{
-// 		return false;
-// 	}
-
-	if(FAILED(CreateGeometry()))
-	{
-		AfxMessageBox(_T("Init Geometry Failed!"));
-
-		return false;
-	}
-
-	//Init CUDAD3D Interface
-	if (!m_ccclass.SetCUDACapableD3D9Device(m_pD3D))
-	{
-		return false;
-	}
-
-	if (!m_ccclass.LoadD3D9DirectXDevice(m_pD3DDevice))
-	{
-		return false;
-	}
-
-	if(!m_ccclass.RegisterD3D9VertexBuffer(m_pVertexBuffer))
-	{
-		return false;
-	}
-
-// 	if(FAILED(LoadTextureData(m_lpResetDataPointer->m_lpImageBuffer, m_lpResetDataPointer->m_iImageWidth, m_lpResetDataPointer->m_iImageHeight)))
-// 	{
-// 		return false;
-// 	}
-
-	return true;
-}
 
 void CCUDAD3DDisplay::VerifyModes(void)
 {
@@ -596,17 +729,17 @@ HRESULT CCUDAD3DDisplay::SetupDevice(void)
 	hr |= m_pD3DDevice->SetRenderState(D3DRS_ZENABLE, FALSE);
 
 	// Texture State
-// 	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
-// 	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
-// 	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-// 	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-// 	hr |= m_pD3DDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-// 	hr |= m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-// 	//hr = m_pD3DDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
-// 	//hr = m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_ANISOTROPIC);
-// 	//hr = m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAXANISOTROPY, 7);
-// 	hr |= m_pD3DDevice->SetSamplerState( 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-// 	hr |= m_pD3DDevice->SetSamplerState( 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+	hr |= m_pD3DDevice->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+	hr |= m_pD3DDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+	hr |= m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+	//hr = m_pD3DDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
+	//hr = m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_ANISOTROPIC);
+	//hr = m_pD3DDevice->SetSamplerState(0, D3DSAMP_MAXANISOTROPY, 7);
+	hr |= m_pD3DDevice->SetSamplerState( 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+	hr |= m_pD3DDevice->SetSamplerState( 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
 
 	return hr;
 }
@@ -658,7 +791,44 @@ HRESULT CCUDAD3DDisplay::DestroyDevice(void)
 	return S_OK;
 }
 
-HRESULT CCUDAD3DDisplay::CreateGeometry(void)
+HRESULT CCUDAD3DDisplay::CreateTexGeometry(void)
+{
+	HRESULT hr = S_OK;
+
+	// Release Old TexVertexBuffer
+	if(FAILED(DestroyTexGeometry()))
+	{
+		return E_FAIL;
+	}
+
+	// Init Vertex
+	StruCustomTexVertex struVInfo[4] = 
+	{
+		{-m_iControlWidth/2.0f, -m_iControlHeight/2.0f, 0.0f, 0.0f, 0.0f},
+		{m_iControlWidth/2.0f, -m_iControlHeight/2.0f, 0.0f, 1.0f, 0.0f},
+		{-m_iControlWidth/2.0f, m_iControlHeight/2.0f, 0.0f, 0.0f, 1.0f},
+		{m_iControlWidth/2.0f, m_iControlHeight/2.0f, 0.0f, 1.0f, 1.0f}
+	};
+
+	hr |= m_pD3DDevice->CreateVertexBuffer(sizeof(struVInfo)/sizeof(struVInfo[0])*sizeof(StruCustomTexVertex), 0, D3DFVF_CUSTOMTEXVERTEX, D3DPOOL_DEFAULT, \
+		&m_pTexVertexBuffer, NULL);
+
+	void *lpVBuffer;
+	if(FAILED(m_pTexVertexBuffer->Lock(0, sizeof(struVInfo)/sizeof(struVInfo[0])*sizeof(StruCustomTexVertex), (void **)&lpVBuffer, 0)))
+	{
+		DestroyTexGeometry();
+
+		return E_FAIL;
+	}
+
+	memcpy(lpVBuffer, (void *)struVInfo, sizeof(struVInfo)/sizeof(struVInfo[0])*sizeof(StruCustomTexVertex));
+
+	hr |= m_pTexVertexBuffer->Unlock();
+
+	return hr;
+}
+
+HRESULT CCUDAD3DDisplay::CreateVerGeometry(void)
 {
 	int iControlWidth, iControlHeight;
 	//float fDisplayWidth, fDisplayHeight;
@@ -673,7 +843,7 @@ HRESULT CCUDAD3DDisplay::CreateGeometry(void)
 // 	}
 
 	// Release Old VertexBuffer
-	if(FAILED(DestroyGeometry()))
+	if(FAILED(DestroyVerGeometry()))
 	{
 		return E_FAIL;
 	}
@@ -733,7 +903,7 @@ HRESULT CCUDAD3DDisplay::CreateGeometry(void)
 	return hr;
 }
 
-HRESULT CCUDAD3DDisplay::DestroyGeometry(void)
+HRESULT CCUDAD3DDisplay::DestroyVerGeometry(void)
 {
 	if(m_pVertexBuffer != NULL)
 	{
@@ -744,100 +914,147 @@ HRESULT CCUDAD3DDisplay::DestroyGeometry(void)
 	return S_OK;
 }
 
-HRESULT CCUDAD3DDisplay::CreateCustomTextures(int iTextWidth, int iTextHeight, D3DFORMAT StruTextFormat, int iPixelBytesNum)
+HRESULT CCUDAD3DDisplay::DestroyTexGeometry(void)
 {
-	int iAdaptedTextWidth = iTextWidth, iAdaptedTextHeight = iTextHeight;
 	HRESULT hr = S_OK;
 
-	if(iTextWidth <= 0 && iTextHeight <= 0 && iPixelBytesNum <= 0)
+	if(m_pTexVertexBuffer != NULL)
 	{
-		AfxMessageBox(_T("Create Textures Failed!"));		
+		m_pTexVertexBuffer->Release();
+		m_pTexVertexBuffer = NULL;
+	}
 
+	return hr;
+}
+
+HRESULT CCUDAD3DDisplay::CreateCUDATextures(void)
+{
+	HRESULT hr = S_OK;
+
+	if(FAILED(DestroyCUDATextures()))
+	{
 		return E_FAIL;
 	}
 
-	if(!TextureSizeAdapt(iTextWidth, iTextHeight, &iAdaptedTextWidth, &iAdaptedTextHeight))
-	{
-		return E_FAIL;
-	}
-
-	if(FAILED(DestroyTextureObject()))
-	{
-		return E_FAIL;
-	}
-
-	m_struTextInfo.iTextWidth = iAdaptedTextWidth;
-	m_struTextInfo.iTextHeight = iAdaptedTextHeight;
-	m_struTextInfo.StruTextFormat = StruTextFormat;
-	m_struTextInfo.iPixelBytesNum = iPixelBytesNum;
-
-	hr |= m_pD3DDevice->CreateTexture(m_struTextInfo.iTextWidth, \
-		m_struTextInfo.iTextHeight, \
+	hr |= m_pD3DDevice->CreateTexture(m_struCUDATextInfo.iTextWidth, \
+		m_struCUDATextInfo.iTextHeight, \
 		0, \
 		0, \
-		m_struTextInfo.StruTextFormat, \
-		D3DPOOL_MANAGED, \
-		&m_pImageTexture, \
+		m_struCUDATextInfo.StruTextFormat, \
+		D3DPOOL_DEFAULT, \
+		&m_struCUDATextInfo.pImageTexture, \
 		NULL);
 
 	return hr;
 }
 
-HRESULT CCUDAD3DDisplay::LoadTextureData(UCHAR *lpDataBuffer, int iTextWidth, int iTextHeight)
+HRESULT CCUDAD3DDisplay::DestroyCUDATextures(void)
 {
-	int i, j;
-	int iter_i, iter_j;
-	int iTextBufferStartX, iTextBufferStartY;
-	int iDataBufferStartX, iDataBufferStartY;
-	int iDataBufferEndX, iDataBufferEndY;
-	UCHAR ucPixelValue;
-	HRESULT hr = S_OK;
-	D3DLOCKED_RECT rcWorkRect;
-	RECT rcLockRect = {0, 0, m_struTextInfo.iTextWidth, m_struTextInfo.iTextHeight};
-
-	// Init Pos
-	if(m_struTextInfo.iTextWidth >= iTextWidth)
+	if(m_struCUDATextInfo.pImageTexture != NULL)
 	{
-		iTextBufferStartX = (m_struTextInfo.iTextWidth-iTextWidth) / 2;
-		iDataBufferStartX = 0;
-		iDataBufferEndX = iDataBufferStartX + iTextWidth;
-	}
-	else
-	{
-		iTextBufferStartX = 0;
-		iDataBufferStartX = (iTextWidth-m_struTextInfo.iTextWidth) / 2;
-		iDataBufferEndX = iDataBufferStartX + m_struTextInfo.iTextWidth;
+		m_pD3DDevice->SetTexture(0, NULL);
+		m_struCUDATextInfo.pImageTexture->Release();
+		m_struCUDATextInfo.pImageTexture = NULL;
 	}
 
-	if(m_struTextInfo.iTextHeight >= iTextHeight)
-	{
-		iTextBufferStartY = (m_struTextInfo.iTextHeight-iTextHeight) / 2;
-		iDataBufferStartY = 0;
-		iDataBufferEndY = iDataBufferStartY + iTextHeight;
-	}
-	else
-	{
-		iTextBufferStartY = 0;
-		iDataBufferStartY = (iTextHeight-m_struTextInfo.iTextHeight) / 2;
-		iDataBufferEndY = iDataBufferStartY + m_struTextInfo.iTextHeight;
-	}
-
-	hr |= m_pImageTexture->LockRect(0, &rcWorkRect, &rcLockRect, D3DLOCK_DISCARD);
-
-	memset((BYTE *)rcWorkRect.pBits, 0, rcWorkRect.Pitch*m_struTextInfo.iTextHeight);
-	for(j=iDataBufferEndY-1, iter_j=iTextBufferStartY; j>=iDataBufferStartY; j--, iter_j++)
-	{
-		for(i=iDataBufferStartX, iter_i=iTextBufferStartX; i<iDataBufferEndX; i++, iter_i++)
-		{
-			ucPixelValue = lpDataBuffer[j*iTextWidth+i];
-			*(DWORD *)((BYTE *)rcWorkRect.pBits + iter_j*rcWorkRect.Pitch + m_struTextInfo.iPixelBytesNum*iter_i) = D3DCOLOR_XRGB(ucPixelValue, ucPixelValue, ucPixelValue);
-		}
-	}
-
-	hr |= m_pImageTexture->UnlockRect(0);
-
-	return hr;
+	return S_OK;
 }
+
+
+// HRESULT CCUDAD3DDisplay::CreateCustomTextures(int iTextWidth, int iTextHeight, D3DFORMAT StruTextFormat, int iPixelBytesNum)
+// {
+// 	int iAdaptedTextWidth = iTextWidth, iAdaptedTextHeight = iTextHeight;
+// 	HRESULT hr = S_OK;
+// 
+// 	if(iTextWidth <= 0 && iTextHeight <= 0 && iPixelBytesNum <= 0)
+// 	{
+// 		AfxMessageBox(_T("Create Textures Failed!"));		
+// 
+// 		return E_FAIL;
+// 	}
+// 
+// 	if(!TextureSizeAdapt(iTextWidth, iTextHeight, &iAdaptedTextWidth, &iAdaptedTextHeight))
+// 	{
+// 		return E_FAIL;
+// 	}
+// 
+// 	if(FAILED(DestroyTextureObject()))
+// 	{
+// 		return E_FAIL;
+// 	}
+// 
+// 	m_struTextInfo.iTextWidth = iAdaptedTextWidth;
+// 	m_struTextInfo.iTextHeight = iAdaptedTextHeight;
+// 	m_struTextInfo.StruTextFormat = StruTextFormat;
+// 	m_struTextInfo.iPixelBytesNum = iPixelBytesNum;
+// 
+// 	hr |= m_pD3DDevice->CreateTexture(m_struTextInfo.iTextWidth, \
+// 		m_struTextInfo.iTextHeight, \
+// 		0, \
+// 		0, \
+// 		m_struTextInfo.StruTextFormat, \
+// 		D3DPOOL_MANAGED, \
+// 		&m_pImageTexture, \
+// 		NULL);
+// 
+// 	return hr;
+// }
+
+// HRESULT CCUDAD3DDisplay::LoadTextureData(UCHAR *lpDataBuffer, int iTextWidth, int iTextHeight)
+// {
+// 	int i, j;
+// 	int iter_i, iter_j;
+// 	int iTextBufferStartX, iTextBufferStartY;
+// 	int iDataBufferStartX, iDataBufferStartY;
+// 	int iDataBufferEndX, iDataBufferEndY;
+// 	UCHAR ucPixelValue;
+// 	HRESULT hr = S_OK;
+// 	D3DLOCKED_RECT rcWorkRect;
+// 	RECT rcLockRect = {0, 0, m_struTextInfo.iTextWidth, m_struTextInfo.iTextHeight};
+// 
+// 	// Init Pos
+// 	if(m_struTextInfo.iTextWidth >= iTextWidth)
+// 	{
+// 		iTextBufferStartX = (m_struTextInfo.iTextWidth-iTextWidth) / 2;
+// 		iDataBufferStartX = 0;
+// 		iDataBufferEndX = iDataBufferStartX + iTextWidth;
+// 	}
+// 	else
+// 	{
+// 		iTextBufferStartX = 0;
+// 		iDataBufferStartX = (iTextWidth-m_struTextInfo.iTextWidth) / 2;
+// 		iDataBufferEndX = iDataBufferStartX + m_struTextInfo.iTextWidth;
+// 	}
+// 
+// 	if(m_struTextInfo.iTextHeight >= iTextHeight)
+// 	{
+// 		iTextBufferStartY = (m_struTextInfo.iTextHeight-iTextHeight) / 2;
+// 		iDataBufferStartY = 0;
+// 		iDataBufferEndY = iDataBufferStartY + iTextHeight;
+// 	}
+// 	else
+// 	{
+// 		iTextBufferStartY = 0;
+// 		iDataBufferStartY = (iTextHeight-m_struTextInfo.iTextHeight) / 2;
+// 		iDataBufferEndY = iDataBufferStartY + m_struTextInfo.iTextHeight;
+// 	}
+// 
+// 	hr |= m_pImageTexture->LockRect(0, &rcWorkRect, &rcLockRect, D3DLOCK_DISCARD);
+// 
+// 	memset((BYTE *)rcWorkRect.pBits, 0, rcWorkRect.Pitch*m_struTextInfo.iTextHeight);
+// 	for(j=iDataBufferEndY-1, iter_j=iTextBufferStartY; j>=iDataBufferStartY; j--, iter_j++)
+// 	{
+// 		for(i=iDataBufferStartX, iter_i=iTextBufferStartX; i<iDataBufferEndX; i++, iter_i++)
+// 		{
+// 			ucPixelValue = lpDataBuffer[j*iTextWidth+i];
+// 			*(DWORD *)((BYTE *)rcWorkRect.pBits + iter_j*rcWorkRect.Pitch + m_struTextInfo.iPixelBytesNum*iter_i) = D3DCOLOR_XRGB(ucPixelValue, ucPixelValue, ucPixelValue);
+// 		}
+// 	}
+// 
+// 	hr |= m_pImageTexture->UnlockRect(0);
+// 
+// 	return hr;
+// }
 
 HRESULT CCUDAD3DDisplay::DestroyTextureObject(void)
 {
