@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestDialog", "TestDialog.vcproj", "{C3CE438F-1504-46B3-9158-CA070DD12F04}"
+	ProjectSection(WebsiteProperties) = preProject
+		Debug.AspNetCompiler.Debug = "True"
+		Release.AspNetCompiler.Debug = "False"
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C3CE438F-1504-46B3-9158-CA070DD12F04}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C3CE438F-1504-46B3-9158-CA070DD12F04}.Debug|Win32.Build.0 = Debug|Win32
+		{C3CE438F-1504-46B3-9158-CA070DD12F04}.Release|Win32.ActiveCfg = Release|Win32
+		{C3CE438F-1504-46B3-9158-CA070DD12F04}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		VisualSVNWorkingCopyRoot = 
+	EndGlobalSection
+EndGlobal
