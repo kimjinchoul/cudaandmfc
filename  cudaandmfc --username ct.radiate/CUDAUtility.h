@@ -1,27 +1,28 @@
-/********************************************************************
-*  cuda_class.h
-*  This is a example of the CUDA program.
-*  aurthor: zhao.kaiyong(at)gmail.com
-*  http://www.comp.hkbu.edu.hk/~kyzhao/
-*********************************************************************/
-#ifndef __CUDA_CLASS_H__
-#define __CUDA_CLASS_H__
+#pragma once
 
 #pragma warning(disable:4311)
 #pragma warning(disable:4819)
 
+#pragma comment(lib, "cudart.lib ")
+#if defined(DEBUG) || defined(_DEBUG)
+#pragma comment(lib, "cutil32d.lib")
+#else
+#pragma comment(lib, "cutil32.lib")
+#endif
 
+// CUDA Interface Declare
+#include "CUDAKernel.h"
+// includes, d3d9
+#include <d3d9.h>
 #include <d3dx9.h>
+#include <dxerr.h>
+// includes, cuda
 #include <cuda.h>
+#include <builtin_types.h>
 #include <cuda_runtime_api.h>
 #include <cuda_d3d9_interop.h>
-#include <builtin_types.h>
-
+// includes, project
 #include <cutil.h>
-#include <driver_types.h>
-
-#include "CUDAKernel.h"
-
 
 class CCUDACLASS
 {
@@ -34,7 +35,11 @@ public:
 	bool LoadD3D9DirectXDevice(LPDIRECT3DDEVICE9 pD3D9DirectXDevice);
 	bool RegisterD3D9VertexBuffer(LPDIRECT3DVERTEXBUFFER9 pVB);
 	bool UnregisterD3D9VertexBuffer(void);
-	bool CalVertexKernel(float fTime, int iMeshWidth, int iMeshHeight);
+	bool RegisterD3D9TextureBuffer(LPDIRECT3DTEXTURE9 pD3D9TextureBuffer);
+	bool UnregisterD3D9TextureBuffer(void);
+	bool InitD3D9TextureBuffer(void);
+	bool CalVertexKernel(int iMeshWidth, int iMeshHeight, float fTime);
+	bool CalTextureKernel(int iTextureWidth, int iTextureHeight, float fTime);
 	
 
 // 	int MallocMemA(int len);
@@ -45,19 +50,21 @@ public:
 // 	int ReleaseTex();
 
 private:
+	CCUDACLASS(const CCUDACLASS &ccdD3DDisplayFramework);
+	CCUDACLASS& operator=(const CCUDACLASS &ccdRhs);
 	void CUDAErrCheck(LPCTSTR szErrMessage = NULL);
-	float	*device_result;
-	cudaArray* device_tex;
+	//float	*device_result;
+	//cudaArray* device_tex;
+	LPDIRECT3D9 m_pD3D;
 	LPDIRECT3DVERTEXBUFFER9 m_pVB;
- 	LPDIRECT3D9 m_pD3D;
+	LPDIRECT3DVERTEXBUFFER9 m_pTexVB;
+	LPDIRECT3DTEXTURE9 m_pTB;
  	LPDIRECT3DDEVICE9 m_pD3D9DirectXDevice;
 
-	int m_ret_len;
-	float m_fTime;
+	//int m_ret_len;
+	//float m_fTime;
 	int m_iMeshWidth;
 	int m_iMeshHeight;
 
 	CCUDAKernel m_ccKernel;
 };
-
-#endif // __CUDA_CLASS_H__

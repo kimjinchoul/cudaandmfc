@@ -8,7 +8,8 @@
 // includes, project
 #include <cutil.h>
 
-__global__ void DoVertexkernel( float4* pos, unsigned int width, unsigned int height, float time);
+__global__ void DoVertexKernel( float4* pos, unsigned int width, unsigned int height, float time);
+__global__ void DoTextureKernel( unsigned char* lpCUDATexture, int iTextureWidth, int iTextureHeight, size_t dwTextureBufferPitch, float fTimeStamp);
 
 class CCUDAKernel
 {
@@ -16,4 +17,5 @@ public:
 	CCUDAKernel(void);
 	virtual ~CCUDAKernel(void);
 	void DoVertex(float4* pos, unsigned int width, unsigned int height, float time);
+	void DoTexture(float4 *lpCUDATexture, int iTextureWidth, int iTextureHeight, size_t dwTextureBufferPitch, float fTimeStamp);
 };

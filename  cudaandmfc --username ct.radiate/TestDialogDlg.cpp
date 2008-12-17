@@ -101,7 +101,7 @@ BOOL CTestDialogDlg::OnInitDialog()
 
 	// TODO: 在此添加额外的初始化代码
 	m_fTime = 0.0f;
-	if(!m_cddDisplay.InitCUDAD3DDisplay(m_wndDisplayer.GetSafeHwnd()))
+	if(!m_cddDisplay.InitCUDAD3DDisplay(m_wndDisplayer.GetSafeHwnd(), 256, 256, D3DFMT_A32B32G32R32F, 16))
 	{
 		AfxMessageBox(_T("InitCUDAD3DDisplayMethod Failed!"));
 
@@ -109,6 +109,7 @@ BOOL CTestDialogDlg::OnInitDialog()
 	}
 
 	SetTimer(1, 10, NULL);
+
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -166,7 +167,8 @@ void CTestDialogDlg::OnBnClickedOk()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	//OnOK();
-	m_cddDisplay.DisplayVertex(m_fTime);
+	//m_cddDisplay.DisplayVertex(m_fTime);
+	m_cddDisplay.DisplayTexture(m_fTime);
 	KillTimer(1);
 	m_fTime += 0.1f;
 	return ;
@@ -176,7 +178,8 @@ void CTestDialogDlg::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 
-	m_cddDisplay.DisplayVertex(m_fTime);
+	//m_cddDisplay.DisplayVertex(m_fTime);
+	m_cddDisplay.DisplayTexture(m_fTime);
 	m_fTime += 0.1f;
 
 	CDialog::OnTimer(nIDEvent);
